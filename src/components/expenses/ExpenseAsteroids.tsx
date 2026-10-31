@@ -268,8 +268,8 @@ export function ExpenseAsteroids() {
                   title="Sector clear"
                   body={
                     stats.filed > 0
-                      ? `All payments filed. You cleared ${stats.filed} this run with a best combo of ${stats.bestCombo}. Load a demo wave or upload a statement below to keep going.`
-                      : 'Every payment is filed. Load a demo wave or upload a statement below to spawn more asteroids.'
+                      ? `All payments filed. You cleared ${stats.filed} this run with a best combo of ${stats.bestCombo}. Load a new wave or upload a statement below to keep going.`
+                      : 'Every payment is filed. Load a new wave or upload a statement below to spawn more asteroids.'
                   }
                 />
               )}

@@ -1,23 +1,34 @@
 # ChoreQuest
 
-A Matrix-themed productivity game. Sorting email, filing expenses and finishing
-quests earns XP, coins and streaks; a dashboard tracks progress over time, and
-Neo, an AI coach, answers questions about your own data and keeps you moving.
+> **The problem:** we all procrastinate on painful digital chores: a bursting
+> inbox, a month of unreviewed expenses, a to-do list that never shrinks.
+>
+> **ChoreQuest's answer:** every chore becomes a fast, arcade-style game. Each
+> move you make in the game *is* a chore decision, recorded the moment you make
+> it. Clear the game and the chore is done.
 
-## Features
+Built as a Matrix-themed web app with React, Firebase and Gemini.
 
-- **Expense Asteroids** – each payment falls as an asteroid labelled with the
-  merchant and amount. Keys `1`–`5` fire the matching category cannon; a hit
-  files the expense (+3 XP, +1 coin).
-- **Inbox Sort** – archive, keep or star emails with the arrow keys; every 10th
-  email in a combo pays a bonus.
-- **Quest Board** – manual and calendar quests with difficulty-based rewards.
-- **Dashboard** – level and rank, today's activity, a 14-day XP chart (with a
-  table view), and week/month comparisons.
-- **Neo coach** – a chat that answers "how much more did I score this week?",
-  "where did my money go last month?" or "motivate me" from your real stats.
-- **Google sign-in and cloud sync** – progress is saved to Firestore per user;
-  guests keep a local save that migrates on first sign-in.
+## How each chore becomes a game
+
+| Painful chore | The game | What one move does |
+| --- | --- | --- |
+| **Reviewing expenses** | **Expense Asteroids.** Upload your bank statement (CSV) and every transaction falls as an asteroid labelled with its merchant and amount. | Keys `1`–`5` fire the food, travel, bills, shopping or other cannon. A hit files that payment under that category (+3 XP, +1 coin). Misses cost shields, and the asteroids fall faster the more you file. |
+| **Triaging email** | **Inbox Sort.** Emails arrive as a card stack against a combo timer. | `←` archives, `→` keeps, `↑` stars, `Z` undoes. Every 10th email in a row is a +10 XP combo bonus, and an empty inbox is a "boss defeated". |
+| **Getting through the to-do list** | **Quest Board.** Tasks and calendar events become quests rated easy, medium or hard. | Completing a quest pays 10, 25 or 50 XP plus coins. Reopening it takes the reward back, so the score stays honest. |
+
+### What keeps you coming back
+
+- **XP, levels and ranks** (Initiate → Operator → Hacker → Netrunner → Architect → The One), coins and a daily streak.
+- **Dashboard:** today's activity, your best day, a 14-day XP chart split by chore (with a table view), and this-week vs last-week and this-month vs last-month comparisons.
+- **Neo, the AI coach (Gemini):** ask *"how much more did I score this week?"*, *"where did my money go last month?"* or *"motivate me"*. Neo answers from your actual activity history and spending, and ends with one concrete next move.
+- **Your progress follows you:** sign in with Google and everything syncs to Firestore. Guests keep a local save that moves to the cloud on first sign-in.
+
+### Real data in, real results out
+
+- **Bank statements:** any CSV (up to 500 rows) with a date column, a description column (Description, Narration, Particulars, Payee…) and an amount column (Amount, Debit, Withdrawal…). Dates can be `DD/MM/YYYY` or `YYYY-MM-DD`. Duplicate rows are detected, so re-uploading the same statement never double-counts.
+- **Spending breakdown:** filed payments roll up into rupee totals per category, which Neo can summarise for any date range.
+- **Activity history:** every reward is logged per day, so week and month comparisons reflect what you actually did.
 
 ## Architecture
 

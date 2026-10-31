@@ -49,7 +49,7 @@ export function Layout({ page, onNavigate, children }: LayoutProps) {
                   ? `> ${user.displayName ?? user.email ?? 'player'} · synced to cloud`
                   : configured
                     ? '> guest · saved on this device'
-                    : '> sample mode · saved on this device'}
+                    : '> offline mode · saved on this device'}
               </p>
             </div>
           </div>

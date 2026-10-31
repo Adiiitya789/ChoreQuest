@@ -48,7 +48,7 @@ export function StatementImport() {
 
   function handleDemo() {
     const result = importExpenses(buildDemoWave(() => crypto.randomUUID()));
-    setNotice({ tone: 'success', text: `${result.added} new demo asteroids are on their way.` });
+    setNotice({ tone: 'success', text: `${result.added} new asteroids are on their way.` });
   }
 
   function handleDrop(event: DragEvent<HTMLLabelElement>) {
@@ -75,7 +75,7 @@ export function StatementImport() {
           className="focus-ring flex shrink-0 items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-primary-500 hover:text-primary-600"
         >
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          Load a demo wave
+          Load a new wave
         </button>
       </div>
 
