@@ -17,7 +17,6 @@ interface Column {
  */
 export class MatrixRain {
   private columns: Column[] = [];
-  private width = 0;
   private height = 0;
 
   constructor(
@@ -27,7 +26,6 @@ export class MatrixRain {
   ) {}
 
   resize(width: number, height: number) {
-    this.width = width;
     this.height = height;
     const count = Math.ceil(width / this.cell);
     if (count === this.columns.length) return;

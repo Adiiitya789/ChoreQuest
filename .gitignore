@@ -26,3 +26,6 @@ dist-ssr
 supabase/
 src/lib/supabase.ts
 .bolt/
+
+# Local editor/agent tooling
+.claude/
