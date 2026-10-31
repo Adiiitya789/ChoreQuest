@@ -49,7 +49,8 @@ src/
   document and validate the shape and size of every save.
 - No AI API key ships to the browser: Gemini is called via Firebase AI Logic.
 - Optional App Check (reCAPTCHA v3) via `VITE_RECAPTCHA_SITE_KEY`.
-- `.env` is git-ignored; see `.env.example`.
+- `.env` is git-ignored; see `.env.example`. `.env.production` holds only the
+  public Firebase web config, which ships in the bundle anyway.
 
 ## Getting started
 
@@ -69,6 +70,19 @@ sign-in, Firestore and AI Logic (Gemini Developer API).
 | `npm test` | Vitest unit tests for stats, reducer and coach |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript strict check |
+
+## Deployment (Cloud Run)
+
+The `Dockerfile` builds the site with Node and serves `dist/` from nginx on
+port 8080 (`nginx.conf` adds SPA routing, asset caching and security headers).
+Production builds take their public Firebase config from `.env.production`.
+
+- **From GitHub:** Cloud Run → Create service → *Continuously deploy from a
+  repository*; every push to `main` rebuilds and redeploys.
+- **From a terminal:** `gcloud run deploy chorequest --source . --region asia-south2 --allow-unauthenticated`
+
+After the first deploy, add the `*.run.app` domain under Firebase →
+Authentication → Settings → Authorized domains so Google sign-in works.
 
 ## Accessibility
 

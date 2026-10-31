@@ -13,21 +13,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  build: {
-    rollupOptions: {
-      output: {
-        // Long-lived vendor chunks cache across deploys. The Gemini SDK is left
-        // out so it stays in the lazily loaded coach chunk.
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
-          if (id.includes('@firebase/ai') || id.includes('firebase/ai')) return undefined;
-          if (id.includes('@firebase/firestore')) return 'firestore';
-          if (id.includes('@firebase/auth')) return 'firebase-auth';
-          if (id.includes('firebase')) return 'firebase';
-          if (/[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react';
-          return undefined;
-        },
-      },
-    },
-  },
+  // No manualChunks: splitting Firebase/React into vendor chunks created a
+  // circular chunk import that crashed the production build on load. Pages and
+  // the coach are already split with dynamic import().
 });

@@ -1,7 +1,9 @@
-# Files `gcloud run deploy --source .` does not upload. Without this file gcloud
-# would reuse .gitignore and drop .env, and the build needs it for the VITE_* config.
+# Files `gcloud run deploy --source .` does not upload. The build reads its
+# public config from .env.production, so local env files stay on this machine.
 .gcloudignore
 .git
+.env
+*.local
 node_modules
 dist
 .bolt
