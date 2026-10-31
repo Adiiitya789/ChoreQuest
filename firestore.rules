@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Each signed-in player can read and write only their own progress document,
+// and writes must look like a ChoreQuest save. Everything else is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isValidSave() {
+      let data = request.resource.data;
+      let state = data.state;
+      return data.keys().hasOnly(['state', 'updatedAt'])
+        && data.updatedAt == request.time
+        && state is map
+        && state.xp is number && state.xp >= 0
+        && state.coins is number && state.coins >= 0
+        && state.streak is number && state.streak >= 0
+        && state.inbox is list && state.inbox.size() <= 200
+        && state.quests is list && state.quests.size() <= 500
+        && state.expenses is list && state.expenses.size() <= 2000
+        && state.history is map;
+    }
+
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidSave();
+    }
+  }
+}
