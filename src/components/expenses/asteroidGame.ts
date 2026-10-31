@@ -1,136 +1,46 @@
 import { EXPENSE_CATEGORIES, formatRupees, guessCategory } from '@/lib/expenses';
 import { MatrixRain } from '@/lib/matrixRain';
+import {
+  drawAsteroid,
+  drawBackground,
+  drawCannons,
+  drawChips,
+  drawCrosshair,
+  drawEffects,
+  drawScanlines,
+  drawScoreCounter,
+  type CannonView,
+} from '@/components/expenses/asteroidRender';
+import {
+  CANNON_ZONE,
+  CHIP_SECONDS,
+  IMPACT_COLOR,
+  MAX_SHIELDS,
+  SPAWN_DELAY,
+  emptyLevels,
+  initialStats,
+  polygon,
+  rand,
+  type Asteroid,
+  type Beam,
+  type Chip,
+  type GameHooks,
+  type GameStats,
+  type Particle,
+  type Point,
+  type Ring,
+  type Shard,
+} from '@/components/expenses/asteroidTypes';
 import type { Expense, ExpenseCategory } from '@/types';
 
-export const MAX_SHIELDS = 3;
-
-// Space at the bottom of the field reserved for the cannon row.
-const CANNON_ZONE = 104;
-const SPAWN_DELAY = 0.7;
-const CHIP_SECONDS = 0.55;
-const IMPACT_COLOR = '#F87171';
-
-export interface GameStats {
-  shields: number;
-  filed: number;
-  combo: number;
-  bestCombo: number;
-}
-
-export function initialStats(): GameStats {
-  return { shields: MAX_SHIELDS, filed: 0, combo: 0, bestCombo: 0 };
-}
-
-export interface GameHooks {
-  candidates: () => Expense[];
-  onSpawn: (expense: Expense, suggested: ExpenseCategory | null) => void;
-  onHit: (expense: Expense, category: ExpenseCategory) => void;
-  onMiss: (expense: Expense) => void;
-  onStats: (stats: GameStats) => void;
-  onClear: () => void;
-}
-
-interface Asteroid {
-  expense: Expense;
-  suggested: ExpenseCategory | null;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  rotation: number;
-  spin: number;
-  shape: number[];
-  craters: { angle: number; dist: number; r: number }[];
-}
-
-interface Beam {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  color: string;
-  life: number;
-  maxLife: number;
-}
-
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  color: string;
-  size: number;
-}
-
-interface Shard {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  rotation: number;
-  spin: number;
-  points: number[];
-  size: number;
-  life: number;
-}
-
-interface Ring {
-  x: number;
-  y: number;
-  radius: number;
-  color: string;
-  life: number;
-}
-
-interface Chip {
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-  t: number;
-  color: string;
-  label: string;
-  category: ExpenseCategory;
-}
-
-const rand = (min: number, max: number) => min + Math.random() * (max - min);
-
-function polygon(count: number, min: number, max: number): number[] {
-  return Array.from({ length: count }, () => rand(min, max));
-}
-
-function tracePolygon(ctx: CanvasRenderingContext2D, points: number[], radius: number) {
-  ctx.beginPath();
-  points.forEach((scale, i) => {
-    const angle = (i / points.length) * Math.PI * 2;
-    const x = Math.cos(angle) * radius * scale;
-    const y = Math.sin(angle) * radius * scale;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.closePath();
-}
-
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let trimmed = text;
-  while (trimmed.length > 1 && ctx.measureText(`${trimmed}…`).width > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
-  }
-  return `${trimmed.trimEnd()}…`;
-}
-
-function emptyPulses(): Record<ExpenseCategory, number> {
-  return { food: 0, travel: 0, bills: 0, shopping: 0, other: 0 };
-}
+export { MAX_SHIELDS, initialStats, type GameHooks, type GameStats };
 
 /**
  * Canvas game where each uncategorised expense falls as an asteroid. Firing a
  * category's cannon breaks it and files the expense; letting it reach the
  * ground costs a shield and sends it to the back of the queue.
+ *
+ * This class owns game state and physics; all drawing lives in asteroidRender.ts.
  */
 export class AsteroidGame {
   hooks: GameHooks;
@@ -146,12 +56,12 @@ export class AsteroidGame {
   private shards: Shard[] = [];
   private rings: Ring[] = [];
   private chips: Chip[] = [];
-  private pulses = emptyPulses();
-  private recoil = emptyPulses();
+  private pulses = emptyLevels();
+  private recoil = emptyLevels();
   private spawnTimer = 0.5;
   private clearTimer = -1;
   private shake = 0;
-  private aim = { x: -1, y: -1 };
+  private aim: Point = { x: -1, y: -1 };
   // Expenses already shot whose dispatch may not have re-rendered the queue yet.
   private resolved = new Set<string>();
   private misses = new Map<string, number>();
@@ -230,9 +140,7 @@ export class AsteroidGame {
 
   update(dt: number, active: boolean) {
     this.time += dt;
-
     this.rain.update(dt);
-
     if (active) this.updatePlay(dt);
     this.updateEffects(dt);
   }
@@ -244,24 +152,24 @@ export class AsteroidGame {
       ctx.translate(rand(-1, 1) * this.shake * 9, rand(-1, 1) * this.shake * 9);
     }
 
-    this.drawBackground(ctx);
-    if (this.asteroid) this.drawAsteroid(ctx, this.asteroid);
-    this.drawEffects(ctx);
-    this.drawCrosshair(ctx);
-    this.drawCannons(ctx);
-    this.drawChips(ctx);
+    drawBackground(ctx, {
+      width,
+      height,
+      ground: this.groundY(),
+      time: this.time,
+      shieldStrength: this.stats.shields / MAX_SHIELDS,
+      rain: this.rain,
+    });
+    if (this.asteroid) drawAsteroid(ctx, this.asteroid);
+    drawEffects(ctx, { beams: this.beams, rings: this.rings, particles: this.particles, shards: this.shards });
+    drawCrosshair(ctx, this.aim, this.asteroid, this.time);
+    drawCannons(ctx, this.cannonViews(), this.time);
+    drawChips(ctx, this.chips);
 
     ctx.restore();
 
-    this.drawScanlines(ctx);
-    ctx.save();
-    ctx.font = '22px "Share Tech Mono", "JetBrains Mono", monospace';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#00FF41';
-    ctx.shadowColor = 'rgba(0, 255, 65, 0.7)';
-    ctx.shadowBlur = 10;
-    ctx.fillText(`DESTROYED: ${this.stats.filed}`, 16, 14);
-    ctx.restore();
+    drawScanlines(ctx, width, height);
+    drawScoreCounter(ctx, this.stats.filed);
 
     if (this.shake > 0.05 && !this.reduceMotion) {
       ctx.fillStyle = `rgba(248, 113, 113, ${this.shake * 0.18})`;
@@ -269,70 +177,21 @@ export class AsteroidGame {
     }
   }
 
-  private restingAim() {
+  private cannonViews(): CannonView[] {
+    const y = this.cannonY();
+    return EXPENSE_CATEGORIES.map((category, index) => ({
+      category,
+      x: this.cannonX(index),
+      y,
+      angle: this.barrelAngle(index),
+      pulse: this.pulses[category.id],
+      recoil: this.recoil[category.id],
+      suggested: this.asteroid?.suggested === category.id,
+    }));
+  }
+
+  private restingAim(): Point {
     return { x: this.width / 2, y: this.groundY() * 0.45 };
-  }
-
-  private drawCrosshair(ctx: CanvasRenderingContext2D) {
-    const { x, y } = this.aim;
-    const target = this.asteroid;
-    const locked = target !== null && Math.hypot(target.x - x, target.y - y) < 10;
-    const breathe = locked ? 0 : Math.sin(this.time * 4) * 2;
-    const s = (target ? target.r + 14 : 24) + breathe;
-    const arm = s * 0.38;
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.strokeStyle = locked ? '#00FF41' : 'rgba(0, 255, 65, 0.5)';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#00FF41';
-    ctx.shadowBlur = locked ? 12 : 4;
-    ctx.lineCap = 'round';
-    for (const [sx, sy] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      ctx.beginPath();
-      ctx.moveTo(sx * s, sy * (s - arm));
-      ctx.lineTo(sx * s, sy * s);
-      ctx.lineTo(sx * (s - arm), sy * s);
-      ctx.stroke();
-    }
-    // Ticks sit on the frame edges so they never cover the asteroid's label.
-    ctx.beginPath();
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      ctx.moveTo(dx * (s + 7), dy * (s + 7));
-      ctx.lineTo(dx * (s - 5), dy * (s - 5));
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  private drawScanlines(ctx: CanvasRenderingContext2D) {
-    const { width, height } = this;
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 6, 2, 0.22)';
-    for (let y = 0; y < height; y += 4) ctx.fillRect(0, y, width, 1);
-    const vignette = ctx.createRadialGradient(
-      width / 2,
-      height / 2,
-      Math.min(width, height) * 0.35,
-      width / 2,
-      height / 2,
-      Math.max(width, height) * 0.75,
-    );
-    vignette.addColorStop(0, 'rgba(1, 5, 2, 0)');
-    vignette.addColorStop(1, 'rgba(1, 5, 2, 0.6)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
   }
 
   private groundY() {
@@ -355,7 +214,7 @@ export class AsteroidGame {
     return Math.min(-0.35, Math.max(-Math.PI + 0.35, angle));
   }
 
-  private cannonTip(index: number) {
+  private cannonTip(index: number): Point {
     const angle = this.barrelAngle(index);
     return {
       x: this.cannonX(index) + Math.cos(angle) * 28,
@@ -512,253 +371,5 @@ export class AsteroidGame {
     const follow = 1 - Math.exp(-dt * (this.asteroid ? 12 : 3));
     this.aim.x += (goal.x - this.aim.x) * follow;
     this.aim.y += (goal.y - this.aim.y) * follow;
-  }
-
-  private drawBackground(ctx: CanvasRenderingContext2D) {
-    const { width, height } = this;
-    const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, '#021306');
-    sky.addColorStop(0.55, '#010A03');
-    sky.addColorStop(1, '#000401');
-    ctx.fillStyle = sky;
-    ctx.fillRect(-20, -20, width + 40, height + 40);
-
-    const nebulas: [number, number, number, string][] = [
-      [0.2, 0.25, 0.45, 'rgba(0, 255, 65, 0.07)'],
-      [0.85, 0.15, 0.35, 'rgba(0, 200, 80, 0.05)'],
-      [0.65, 0.6, 0.4, 'rgba(0, 255, 65, 0.04)'],
-    ];
-    for (const [nx, ny, nr, color] of nebulas) {
-      const radius = nr * Math.max(width, height);
-      const glow = ctx.createRadialGradient(nx * width, ny * height, 0, nx * width, ny * height, radius);
-      glow.addColorStop(0, color);
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, width, height);
-    }
-
-    // Kept dim so asteroid labels stay readable over it.
-    this.rain.draw(ctx, 0.28);
-
-    // Surface below the shield line.
-    const ground = this.groundY();
-    const surface = ctx.createLinearGradient(0, ground, 0, height);
-    surface.addColorStop(0, 'rgba(3, 30, 10, 0.95)');
-    surface.addColorStop(1, 'rgba(0, 8, 2, 1)');
-    ctx.fillStyle = surface;
-    ctx.fillRect(-20, ground, width + 40, height - ground + 20);
-
-    // Shield line: brighter with more shields left.
-    const strength = this.stats.shields / MAX_SHIELDS;
-    ctx.save();
-    ctx.strokeStyle = strength > 0 ? `rgba(0, 255, 65, ${0.25 + 0.55 * strength})` : 'rgba(248, 113, 113, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#00FF41';
-    ctx.shadowBlur = 12 * strength;
-    ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = -this.time * 20;
-    ctx.beginPath();
-    ctx.moveTo(0, ground);
-    ctx.lineTo(width, ground);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  private drawAsteroid(ctx: CanvasRenderingContext2D, asteroid: Asteroid) {
-    const { r } = asteroid;
-    ctx.save();
-    ctx.translate(asteroid.x, asteroid.y);
-
-    const trail = ctx.createLinearGradient(0, -r * 3.2, 0, 0);
-    trail.addColorStop(0, 'rgba(0, 255, 65, 0)');
-    trail.addColorStop(1, 'rgba(0, 255, 65, 0.2)');
-    ctx.fillStyle = trail;
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.75, 0);
-    ctx.lineTo(0, -r * 3.2);
-    ctx.lineTo(r * 0.75, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.save();
-    ctx.rotate(asteroid.rotation);
-    const rock = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r * 1.1);
-    rock.addColorStop(0, '#46604D');
-    rock.addColorStop(0.5, '#22332A');
-    rock.addColorStop(1, '#0A130D');
-    ctx.fillStyle = rock;
-    ctx.shadowColor = 'rgba(0, 255, 65, 0.45)';
-    ctx.shadowBlur = 18;
-    tracePolygon(ctx, asteroid.shape, r);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(0, 255, 65, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(2, 10, 4, 0.5)';
-    for (const crater of asteroid.craters) {
-      ctx.beginPath();
-      ctx.arc(
-        Math.cos(crater.angle) * r * crater.dist,
-        Math.sin(crater.angle) * r * crater.dist,
-        r * crater.r,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // Labels stay upright so they are readable while the rock spins.
-    const fontSize = Math.max(11, Math.min(14, r * 0.24));
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-    ctx.shadowBlur = 6;
-    ctx.font = `600 ${fontSize}px "Share Tech Mono", "JetBrains Mono", monospace`;
-    ctx.fillStyle = '#E8FFEE';
-    ctx.fillText(fitText(ctx, asteroid.expense.merchant, r * 1.65), 0, -fontSize * 0.55);
-    ctx.font = `700 ${fontSize * 1.1}px "JetBrains Mono", ui-monospace, monospace`;
-    ctx.fillStyle = '#00FF41';
-    ctx.fillText(fitText(ctx, formatRupees(asteroid.expense.amount), r * 1.75), 0, fontSize * 0.85);
-    ctx.restore();
-  }
-
-  private drawEffects(ctx: CanvasRenderingContext2D) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const beam of this.beams) {
-      const alpha = beam.life / beam.maxLife;
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = beam.color;
-      ctx.lineWidth = 9;
-      ctx.shadowColor = beam.color;
-      ctx.shadowBlur = 18;
-      ctx.beginPath();
-      ctx.moveTo(beam.x1, beam.y1);
-      ctx.lineTo(beam.x2, beam.y2);
-      ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-
-    for (const ring of this.rings) {
-      ctx.globalAlpha = ring.life * 0.7;
-      ctx.strokeStyle = ring.color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    for (const p of this.particles) {
-      ctx.globalAlpha = p.life / p.maxLife;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    ctx.save();
-    for (const shard of this.shards) {
-      ctx.globalAlpha = Math.max(0, shard.life);
-      ctx.save();
-      ctx.translate(shard.x, shard.y);
-      ctx.rotate(shard.rotation);
-      ctx.fillStyle = '#2F4A38';
-      tracePolygon(ctx, shard.points, shard.size);
-      ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  private drawCannons(ctx: CanvasRenderingContext2D) {
-    const y = this.cannonY();
-    EXPENSE_CATEGORIES.forEach((category, index) => {
-      const x = this.cannonX(index);
-      const pulse = this.pulses[category.id];
-      const recoil = this.recoil[category.id];
-
-      if (this.asteroid?.suggested === category.id) {
-        ctx.save();
-        ctx.globalAlpha = 0.3 + 0.25 * Math.sin(this.time * 6);
-        ctx.strokeStyle = category.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y - 4, 30, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      if (pulse > 0) {
-        ctx.save();
-        ctx.globalAlpha = pulse * 0.6;
-        ctx.fillStyle = category.color;
-        ctx.beginPath();
-        ctx.arc(x, y - 4, 22 + (1 - pulse) * 18, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      ctx.save();
-      ctx.translate(x, y - 6);
-      ctx.rotate(this.barrelAngle(index));
-      ctx.fillStyle = category.color;
-      ctx.shadowColor = category.color;
-      ctx.shadowBlur = 8 + recoil * 12;
-      ctx.fillRect(2 - recoil * 6, -4, 26, 8);
-      ctx.restore();
-
-      ctx.save();
-      ctx.fillStyle = '#062A12';
-      ctx.strokeStyle = category.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x, y, 18, Math.PI, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = category.color;
-      ctx.beginPath();
-      ctx.arc(x, y - 6, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '600 12px "Share Tech Mono", "JetBrains Mono", monospace';
-      ctx.fillStyle = '#C9FFD5';
-      ctx.fillText(category.label, x, y + 20);
-      ctx.font = '500 11px "JetBrains Mono", ui-monospace, monospace';
-      ctx.fillStyle = category.color;
-      ctx.fillText(category.key, x, y + 36);
-      ctx.restore();
-    });
-  }
-
-  private drawChips(ctx: CanvasRenderingContext2D) {
-    for (const chip of this.chips) {
-      const t = chip.t;
-      const ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-      const x = chip.fromX + (chip.toX - chip.fromX) * ease;
-      const y = chip.fromY + (chip.toY - chip.fromY) * ease - Math.sin(Math.PI * t) * 50;
-      ctx.save();
-      ctx.fillStyle = chip.color;
-      ctx.shadowColor = chip.color;
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1 - t * 0.6;
-      ctx.font = '600 11px "JetBrains Mono", ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#D2FFDC';
-      ctx.fillText(chip.label, x, y - 14);
-      ctx.restore();
-    }
   }
 }
